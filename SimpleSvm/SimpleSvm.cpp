@@ -274,11 +274,15 @@ SvHandleMsrAccess (
 	switch (MsrNum)
 	{
 	case IA32_MSR_EFER:
-		SvHandleEFERWrite(VpData, GuestContext);
-		break;
+		//SvHandleEFERWrite(VpData, GuestContext);
+        SvHandleEffer(VpData, GuestContext);
+        break;
 	case IA32_MSR_LSTR:
 		SvHandleLstrRead(VpData, GuestContext);
 		break;
+    case IA32_MSR_VM_HSAVE:
+        SvHandleSvmHsave(VpData, GuestContext);
+        break;
 	default:
 		SvInjectGeneralProtectionException(VpData);
 		break;
@@ -621,6 +625,10 @@ SvPrepareForVirtualization (
 
     VpData->GuestVmcb.ControlArea.LbrVirtualizationEnable |= SVM_ENABLE_NEST_SVM;
 
+    // This feature allows STGI and CLGI to execute in Guest mode and control virtual interrupts in guest 
+    // mode while still allowing physical interrupts to be intercepted by the hypervisor. 
+    VpData->GuestVmcb.ControlArea.VIntr |= SVM_ENABLE_VIRTUAL_GIF;
+
     //
     // Set up the initial guest state based on the current system state. Those
     // values are loaded into the processor as guest state when the VMRUN
@@ -684,7 +692,7 @@ SvPrepareForVirtualization (
     // saves some of the current state on VMRUN and loads them on #VMEXIT. See
     // "VM_HSAVE_PA MSR (C001_0117h)".
     //
-    __writemsr(SVM_MSR_VM_HSAVE_PA, hostStateAreaPa.QuadPart);
+    __writemsr(IA32_MSR_VM_HSAVE, hostStateAreaPa.QuadPart);
 
     //
     // Also, save some of the current state to VMCB for the host. This is loaded
