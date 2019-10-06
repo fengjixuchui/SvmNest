@@ -206,7 +206,7 @@ SvHandleVmrunEx(
 		pVmcbGuest02va->ControlArea.LbrVirtualizationEnable = pVmcbGuest01va->ControlArea.LbrVirtualizationEnable;
 		pVmcbGuest02va->ControlArea.VIntr = pVmcbGuest01va->ControlArea.VIntr;
 		
-		// 12 -> 02 statesavearea
+		// 12 -> 02 statesavearea and guestfield
 		pVmcbGuest02va->StateSaveArea.GdtrBase = pVmcbGuest12va->StateSaveArea.GdtrBase;
 		pVmcbGuest02va->StateSaveArea.GdtrLimit = pVmcbGuest12va->StateSaveArea.GdtrLimit;
 		pVmcbGuest02va->StateSaveArea.IdtrBase = pVmcbGuest12va->StateSaveArea.IdtrBase;
@@ -225,10 +225,31 @@ SvHandleVmrunEx(
 		pVmcbGuest02va->StateSaveArea.EsAttrib = pVmcbGuest12va->StateSaveArea.EsAttrib;
 		pVmcbGuest02va->StateSaveArea.SsAttrib = pVmcbGuest12va->StateSaveArea.SsAttrib;
 
+		SV_DEBUG_BREAK();
+		pVmcbGuest02va->StateSaveArea.Efer = __readmsr(IA32_MSR_EFER);
+		pVmcbGuest02va->StateSaveArea.Cr0 = __readcr0();
+		pVmcbGuest02va->StateSaveArea.Cr2 = __readcr2();
+		pVmcbGuest02va->StateSaveArea.Cr3 = __readcr3();
+		pVmcbGuest02va->StateSaveArea.Cr4 = __readcr4();
+		pVmcbGuest02va->StateSaveArea.Rflags = pVmcbGuest12va->StateSaveArea.Rflags;
+		pVmcbGuest02va->StateSaveArea.Rsp = pVmcbGuest12va->StateSaveArea.Rsp;
+		pVmcbGuest02va->StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
+		pVmcbGuest02va->StateSaveArea.GPat = __readmsr(IA32_MSR_PAT);
+
+		SaveHostKernelGsBase(VpData);
+		__svm_vmsave(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
+		__writemsr(SVM_MSR_VM_HSAVE_PA, VpData->HostStackLayout.pProcessNestData->GuestSvmHsave12.QuadPart); // prevent to destroy the 01 HostStateArea
+		//__svm_vmrun(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
+		VpData->HostStackLayout.pProcessNestData->vcpu_vmx->pVpdata = VpData;
+		
+		SvLaunchVm(&(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa));
     }
 	else // 嵌套环境已经建立
     {
-    
+		SV_DEBUG_BREAK();
+		//SvInjectGeneralProtectionException(VpData);
+// 		PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa);
+// 		VpData->GuestVmcb.StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
     }
 
 	VpData->GuestVmcb.StateSaveArea.Rip = VpData->GuestVmcb.ControlArea.NRip; // need npt
