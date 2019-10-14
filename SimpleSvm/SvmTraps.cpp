@@ -243,6 +243,8 @@ SvHandleVmrunEx(
         __svm_vmsave(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_host_02_pa);
 
 		//SvLaunchVm(&(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa));
+        GuestContext->ExitVm = EXIT_REASON::EXIT_NEST_SET_NEW_VMCB;
+        GuestContext->VpRegs->Rbx = (UINT64)&(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
     }
 	else // 嵌套环境已经建立
     {
@@ -252,7 +254,7 @@ SvHandleVmrunEx(
 // 		VpData->GuestVmcb.StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
     }
 
-	VpData->GuestVmcb.StateSaveArea.Rip = VpData->GuestVmcb.ControlArea.NRip; // need npt
+	//VpData->GuestVmcb.StateSaveArea.Rip = VpData->GuestVmcb.ControlArea.NRip; // need npt
 }
 
 //Mnemonic Opcode Description
