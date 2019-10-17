@@ -254,6 +254,11 @@ SvHandleVmrunEx(
     {
 		SV_DEBUG_BREAK();
         ENTER_GUEST_MODE(VpData->HostStackLayout.pProcessNestData->vcpu_vmx);
+        PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
+        PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa);
+        pVmcbGuest02va->StateSaveArea.Rflags = pVmcbGuest12va->StateSaveArea.Rflags;
+        pVmcbGuest02va->StateSaveArea.Rsp = pVmcbGuest12va->StateSaveArea.Rsp;
+        pVmcbGuest02va->StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
 		//SvInjectGeneralProtectionException(VpData);
 // 		PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa);
 // 		VpData->GuestVmcb.StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
@@ -372,6 +377,13 @@ VOID SvHandleCpuidForL2(
     pVmcbGuest12va->StateSaveArea.Rflags = pVmcbGuest02va->StateSaveArea.Rflags; // save L2 guest rflags => vmcb12
     pVmcbGuest12va->StateSaveArea.Rip = pVmcbGuest02va->StateSaveArea.Rip; // save L2 rip => vmcb12
     pVmcbGuest12va->ControlArea.NRip = pVmcbGuest02va->ControlArea.NRip; // save L2 next rip => vmcb12
+
+    pVmcbGuest12va->ControlArea.ExitCode = pVmcbGuest02va->ControlArea.ExitCode;
+    pVmcbGuest12va->ControlArea.ExitInfo1 = pVmcbGuest02va->ControlArea.ExitInfo1;
+    pVmcbGuest12va->ControlArea.ExitInfo2 = pVmcbGuest02va->ControlArea.ExitInfo2;
+    pVmcbGuest12va->ControlArea.ExitIntInfo = pVmcbGuest02va->ControlArea.ExitIntInfo;
+    pVmcbGuest12va->ControlArea.EventInj = pVmcbGuest02va->ControlArea.EventInj;
+
     GuestContext->VpRegs->Rax = VmmpGetVcpuVmx(VpData)->vmcb_guest_12_pa; //  L2 rax, vmcb12pa
     pVmcbGuest02va->StateSaveArea.Rsp = VpData->GuestVmcb.StateSaveArea.Rsp; // L2 host rsp 
     pVmcbGuest02va->StateSaveArea.Rip = VpData->GuestVmcb.ControlArea.NRip; // L2 host ip 
@@ -384,7 +396,6 @@ VOID SvHandleCpuidForL2(
     HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] GuestContext->VpRegs->Rax  : %I64X \r\n", GuestContext->VpRegs->Rax);
     HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] pVmcbGuest02va->StateSaveArea.Rsp  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rsp);
     HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] pVmcbGuest02va->StateSaveArea.Rip  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rip);
-    HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2]   : %I64X \r\n", );
-
+    
     LEAVE_GUEST_MODE(VmmpGetVcpuVmx(VpData));     // retrun L1 host
 }
