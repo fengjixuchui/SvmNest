@@ -154,7 +154,7 @@ SvHandleVmrunEx(
         SetvCpuMode(VpData, CPU_MODE::VmxMode);
         VpData->HostStackLayout.pProcessNestData->vcpu_vmx = nested_vmx;
 
-        HYPERPLATFORM_LOG_DEBUG("VMXON: Run Successfully with  Total Vitrualized Core: %x  Current Cpu: %x in Cpu Group : %x  Number: %x \r\n",
+        SvDebugPrint("[SvHandleVmrunEx]: Run Successfully with  Total Vitrualized Core: %x  Current Cpu: %x in Cpu Group : %x  Number: %x \r\n",
              nested_vmx->InitialCpuNumber, number.Group, number.Number);
         
         // Load VMCB02 into physical cpu , And perform some check on VMCB12
@@ -169,13 +169,13 @@ SvHandleVmrunEx(
 
         nested_vmx->kVirtualProcessorId = (USHORT)KeGetCurrentProcessorNumberEx(nullptr) + 1;
 
-        HYPERPLATFORM_LOG_DEBUG_SAFE("[VMPTRLD] Run Successfully \r\n");
-        HYPERPLATFORM_LOG_DEBUG_SAFE("[VMPTRLD] Current Cpu: %x in Cpu Group : %x  Number: %x \r\n", nested_vmx->InitialCpuNumber, number.Group, number.Number);
+        SvDebugPrint("[SvHandleVmrunEx] Run Successfully \r\n");
+        SvDebugPrint("[SvHandleVmrunEx] Current Cpu: %x in Cpu Group : %x  Number: %x \r\n", nested_vmx->InitialCpuNumber, number.Group, number.Number);
 
         // emulate write and read 
         //  SvLaunchVm(&vpData->HostStackLayout.GuestVmcbPa);
         VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa = GuestContext->VpRegs->Rax;
-        HYPERPLATFORM_LOG_DEBUG("SvHandleVmrunEx : vmcb12pa : %I64X  \r\n", GuestContext->VpRegs->Rax);
+        SvDebugPrint("[SvHandleVmrunEx] : vmcb12pa : %I64X  \r\n", GuestContext->VpRegs->Rax);
 		//VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_host_12_pa = VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa;
         VpData->HostStackLayout.pProcessNestData->vcpu_vmx->hostStateAreaPa_12_pa = VpData->HostStackLayout.pProcessNestData->GuestSvmHsave12.QuadPart;
 
@@ -253,18 +253,36 @@ SvHandleVmrunEx(
 	else // 嵌套环境已经建立
     {
 		SV_DEBUG_BREAK();
-        ENTER_GUEST_MODE(VpData->HostStackLayout.pProcessNestData->vcpu_vmx);
-        PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
-        PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa);
-        pVmcbGuest02va->StateSaveArea.Rflags = pVmcbGuest12va->StateSaveArea.Rflags;
-        pVmcbGuest02va->StateSaveArea.Rsp = pVmcbGuest12va->StateSaveArea.Rsp;
-        pVmcbGuest02va->StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
 		//SvInjectGeneralProtectionException(VpData);
 // 		PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa);
 // 		VpData->GuestVmcb.StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
     }
 
 	//VpData->GuestVmcb.StateSaveArea.Rip = VpData->GuestVmcb.ControlArea.NRip; // need npt
+}
+
+VOID
+SvHandleVmrunExForL1ToL2(
+    _Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
+    _Inout_ PGUEST_CONTEXT GuestContext
+)
+{
+    UNREFERENCED_PARAMETER(GuestContext);
+    if ( VMX_MODE::RootMode == VmxGetVmxMode(VmmpGetVcpuVmx(VpData)))
+    {
+        PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
+        PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa);
+        pVmcbGuest02va->StateSaveArea.Rflags = pVmcbGuest12va->StateSaveArea.Rflags;
+        pVmcbGuest02va->StateSaveArea.Rsp = pVmcbGuest12va->StateSaveArea.Rsp;
+        pVmcbGuest02va->StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
+
+        ENTER_GUEST_MODE(VpData->HostStackLayout.pProcessNestData->vcpu_vmx);
+    }
+    else
+    {
+        SvInjectGeneralProtectionExceptionVmcb02(VpData);
+        // something error
+    }
 }
 
 //Mnemonic Opcode Description
@@ -316,7 +334,7 @@ void VmmpHandleVmCallUnHookSyscall(PVIRTUAL_PROCESSOR_DATA VpData)
 // 	VpData->HostStackLayout.OriginalMsrLstar = NULL;
 }
 
-VOID SvHandleCpuidForL2(
+VOID SvHandleCpuidForL2ToL1(
 	_Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
 	_Inout_ PGUEST_CONTEXT GuestContext
 )
@@ -351,22 +369,18 @@ VOID SvHandleCpuidForL2(
 		break;
 	}
 
-	//
-   // Update guest's GPRs with results.
-   //
-	GuestContext->VpRegs->Rax = registers[0];
-	GuestContext->VpRegs->Rbx = registers[1];
-	GuestContext->VpRegs->Rcx = registers[2];
-	GuestContext->VpRegs->Rdx = registers[3];
-
-	//VpData->GuestVmcb.StateSaveArea.Rip = VpData->GuestVmcb.ControlArea.NRip;
-
     if (VMX_MODE::RootMode == VmxGetVmxMode(VmmpGetVcpuVmx(VpData)))
     {
-        // retrun L2 guest
+		//
+		// Update guest's GPRs with results.
+		//
+		GuestContext->VpRegs->Rax = registers[0];
+		GuestContext->VpRegs->Rbx = registers[1];
+		GuestContext->VpRegs->Rcx = registers[2];
+		GuestContext->VpRegs->Rdx = registers[3];
         PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
         pVmcbGuest02va->StateSaveArea.Rip = pVmcbGuest02va->ControlArea.NRip;
-        return;
+        return; // return L1
     }
 
     PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
@@ -389,13 +403,13 @@ VOID SvHandleCpuidForL2(
     pVmcbGuest02va->StateSaveArea.Rip = VpData->GuestVmcb.ControlArea.NRip; // L2 host ip 
     pVmcbGuest02va->StateSaveArea.Rflags = VpData->GuestVmcb.StateSaveArea.Rflags; // not right , but can not find
 
-    HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] pVmcbGuest12va->StateSaveArea.Rax  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rax);
-    HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] pVmcbGuest12va->StateSaveArea.Rsp  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rsp);
-    HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] pVmcbGuest12va->StateSaveArea.Rip  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rip);
-    HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] pVmcbGuest12va->ControlArea.NRip  : %I64X \r\n", pVmcbGuest12va->ControlArea.NRip);
-    HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] GuestContext->VpRegs->Rax  : %I64X \r\n", GuestContext->VpRegs->Rax);
-    HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] pVmcbGuest02va->StateSaveArea.Rsp  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rsp);
-    HYPERPLATFORM_LOG_DEBUG_SAFE("[SvHandleCpuidForL2] pVmcbGuest02va->StateSaveArea.Rip  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rip);
+    SvDebugPrint("[SvHandleCpuidForL2ToL1] pVmcbGuest12va->StateSaveArea.Rax  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rax);
+    SvDebugPrint("[SvHandleCpuidForL2ToL1] pVmcbGuest12va->StateSaveArea.Rsp  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rsp);
+    SvDebugPrint("[SvHandleCpuidForL2ToL1] pVmcbGuest12va->StateSaveArea.Rip  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rip);
+    SvDebugPrint("[SvHandleCpuidForL2ToL1] pVmcbGuest12va->ControlArea.NRip  : %I64X \r\n", pVmcbGuest12va->ControlArea.NRip);
+    SvDebugPrint("[SvHandleCpuidForL2ToL1] GuestContext->VpRegs->Rax  : %I64X \r\n", GuestContext->VpRegs->Rax);
+    SvDebugPrint("[SvHandleCpuidForL2ToL1] pVmcbGuest02va->StateSaveArea.Rsp  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rsp);
+    SvDebugPrint("[SvHandleCpuidForL2ToL1] pVmcbGuest02va->StateSaveArea.Rip  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rip);
     
     LEAVE_GUEST_MODE(VmmpGetVcpuVmx(VpData));     // retrun L1 host
 }
