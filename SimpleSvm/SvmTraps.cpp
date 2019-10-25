@@ -276,6 +276,8 @@ SvHandleVmrunExForL1ToL2(
         pVmcbGuest02va->StateSaveArea.Rsp = pVmcbGuest12va->StateSaveArea.Rsp;
         pVmcbGuest02va->StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
         pVmcbGuest02va->StateSaveArea.LStar = pVmcbGuest12va->StateSaveArea.LStar;
+		GuestContext->VpRegs->Rax = pVmcbGuest12va->StateSaveArea.Rax;
+		pVmcbGuest02va->StateSaveArea.Rax = pVmcbGuest12va->StateSaveArea.Rax;
 
         ENTER_GUEST_MODE(VpData->HostStackLayout.pProcessNestData->vcpu_vmx);
     }
@@ -403,4 +405,35 @@ VOID SvHandleCpuidForL2ToL1(
     SaveGuestVmcb12FromGuestVmcb02(VpData, GuestContext);
 
     LEAVE_GUEST_MODE(VmmpGetVcpuVmx(VpData));     // retrun L1 host
+}
+
+VOID
+SvHandleMsrAccessNest(
+	_Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
+	_Inout_ PGUEST_CONTEXT GuestContext
+)
+{
+	if (VMX_MODE::RootMode == VmxGetVmxMode(VmmpGetVcpuVmx(VpData)))
+	{
+		LARGE_INTEGER MsrValue = { 0 };
+		PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
+
+		if (0 == pVmcbGuest02va->ControlArea.ExitInfo1) // read
+		{
+			Msr MsrNum = (Msr)GuestContext->VpRegs->Rcx;
+			MsrValue.QuadPart = UtilReadMsr64(MsrNum); // read from host
+
+			GuestContext->VpRegs->Rax = MsrValue.LowPart;
+			GuestContext->VpRegs->Rdx = MsrValue.HighPart;
+		}
+		else
+		{
+			
+		}
+		pVmcbGuest02va->StateSaveArea.Rip = pVmcbGuest02va->ControlArea.NRip;
+		return; // return L1
+	}
+
+	SaveGuestVmcb12FromGuestVmcb02(VpData, GuestContext);
+	LEAVE_GUEST_MODE(VmmpGetVcpuVmx(VpData));     // retrun L1 host
 }
