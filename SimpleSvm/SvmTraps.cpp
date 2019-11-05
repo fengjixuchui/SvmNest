@@ -148,6 +148,13 @@ SvHandleVmrunEx(
 	//SV_DEBUG_BREAK();
 	NT_ASSERT(GuestContext->VpRegs->Rax != 0);
 
+    //VMRUN is available only at CPL-0. A #GP exception is raised if the CPL is greater than 0. 
+    if (VpData->GuestVmcb.StateSaveArea.Cpl > 0)
+    {
+        SvInjectGeneralProtectionException(VpData);
+        return;
+    }
+
     if (NULL == VpData->HostStackLayout.pProcessNestData->vcpu_vmx && 
         CPU_MODE::VmxMode != VpData->HostStackLayout.pProcessNestData->CpuMode) // 没有开始嵌套
     {
@@ -268,6 +275,13 @@ SvHandleVmrunExForL1ToL2(
 )
 {
     UNREFERENCED_PARAMETER(GuestContext);
+    //VMRUN is available only at CPL-0. A #GP exception is raised if the CPL is greater than 0. 
+    if (GetCurrentVmcbGuest02(VpData)->StateSaveArea.Cpl > 0)
+    {
+        SvInjectGeneralProtectionExceptionVmcb02(VpData);
+        return;
+    }
+
     if ( VMX_MODE::RootMode == VmxGetVmxMode(VmmpGetVcpuVmx(VpData)))
     {
         PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
@@ -424,7 +438,7 @@ SvHandleMsrAccessNest(
 	}
 
     UINT32 InterceptMisc1 = GetCurrentVmcbGuest12(VpData)->ControlArea.InterceptMisc1;
-    if ((InterceptMisc1 & SVM_INTERCEPT_MISC1_MSR_PROT) && CheckVmcb12MsrBit(VpData, GuestContext))
+    if ((InterceptMisc1 & SVM_INTERCEPT_MISC1_MSR_PROT))
     {
 //         SaveGuestVmcb12FromGuestVmcb02(VpData, GuestContext);
 //         LEAVE_GUEST_MODE(VmmpGetVcpuVmx(VpData));     // retrun L1 host
