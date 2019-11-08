@@ -1,33 +1,6 @@
 #include "BaseUtil.h"
 #include "SvmUtil.h"
 
-VOID SetvCpuMode(PVIRTUAL_PROCESSOR_DATA pVpdata, CPU_MODE CpuMode)
-{
-    //guest_context->stack->processor_data->CpuMode = CpuMode;
-    pVpdata->HostStackLayout.pProcessNestData->CpuMode = CpuMode;
-}
-
-// VA -> PA
-ULONG64 UtilPaFromVa(void *va)
-{
-    const auto pa = MmGetPhysicalAddress(va);
-    return pa.QuadPart;
-}
-
-// PA -> VA
-void *UtilVaFromPa(ULONG64 pa) 
-{
-    PHYSICAL_ADDRESS pa2 = {};
-    pa2.QuadPart = pa;
-    return MmGetVirtualForPhysical(pa2);
-}
-
-void SaveHostKernelGsBase(PVIRTUAL_PROCESSOR_DATA pVpdata)
-{
-	//vcpu->HostKernelGsBase.QuadPart = UtilReadMsr64(Msr::kIa32KernelGsBase);
-	pVpdata->HostStackLayout.pProcessNestData->HostKernelGsBase.QuadPart = UtilReadMsr64(Msr::kIa32KernelGsBase);
-}
-
 //------------------------------------------------------------------------------------------------//
 VOID
 ENTER_GUEST_MODE(
@@ -117,6 +90,87 @@ VCPUVMX* VmmpGetVcpuVmx(PVIRTUAL_PROCESSOR_DATA pVpdata)
     return pVpdata->HostStackLayout.pProcessNestData->vcpu_vmx;
 }
 
+/*!
+@brief          Injects #GP with 0 of error code.
+
+@param[inout]   VpData - Per processor data.
+*/
+_IRQL_requires_same_
+VOID
+SvInjectGeneralProtectionException(
+    _Inout_ PVIRTUAL_PROCESSOR_DATA VpData
+)
+{
+    //SV_DEBUG_BREAK();
+    EVENTINJ event;
+
+    //
+    // Inject #GP(vector = 13, type = 3 = exception) with a valid error code.
+    // An error code are always zero. See "#GP—General-Protection Exception
+    // (Vector 13)" for details about the error code.
+    //
+    event.AsUInt64 = 0;
+    event.Fields.Vector = 13;
+    event.Fields.Type = 3;
+    event.Fields.ErrorCodeValid = 1;
+    event.Fields.Valid = 1;
+    VpData->GuestVmcb.ControlArea.EventInj = event.AsUInt64;
+}
+
+VOID
+SvInjectGeneralProtectionExceptionVmcb02(
+    _Inout_ PVIRTUAL_PROCESSOR_DATA VpData
+)
+{
+    //SV_DEBUG_BREAK();
+    EVENTINJ event;
+
+    //
+    // Inject #GP(vector = 13, type = 3 = exception) with a valid error code.
+    // An error code are always zero. See "#GP—General-Protection Exception
+    // (Vector 13)" for details about the error code.
+    //
+    event.AsUInt64 = 0;
+    event.Fields.Vector = 13;
+    event.Fields.Type = 3;
+    event.Fields.ErrorCodeValid = 1;
+    event.Fields.Valid = 1;
+    //VpData->GuestVmcb.ControlArea.EventInj = event.AsUInt64;
+    PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VmmpGetVcpuVmx(VpData)->vmcb_guest_02_pa);
+    pVmcbGuest02va->ControlArea.EventInj = event.AsUInt64;
+}
+
+VOID
+SvInjectBPExceptionVmcb02(
+    _Inout_ PVIRTUAL_PROCESSOR_DATA VpData
+)
+{
+    EVENTINJ event;
+    event.AsUInt64 = 0;
+    event.Fields.Vector = 3; //  #BP¡ªBreakpoint Exception (Vector 3)
+    event.Fields.Type = 3;
+    //event.Fields.ErrorCodeValid = 1;  // EV (Error Code Valid)¡ªBit 11. Set to 1 if the exception should push an error code onto the stack; clear to 0 otherwise. 
+    event.Fields.Valid = 1; //  V (Valid)¡ªBit 31. Set to 1 if an event is to be injected into the guest; clear to 0 otherwise. 
+
+    GetCurrentVmcbGuest02(VpData)->ControlArea.EventInj = event.AsUInt64;
+}
+
+VOID
+SvInjectBPExceptionVmcb01(
+    _Inout_ PVIRTUAL_PROCESSOR_DATA VpData
+)
+{
+    EVENTINJ event;
+    event.AsUInt64 = 0;
+    event.Fields.Vector = 3; //  #BP¡ªBreakpoint Exception (Vector 3)
+    event.Fields.Type = 3;
+    //event.Fields.ErrorCodeValid = 1;  // EV (Error Code Valid)¡ªBit 11. Set to 1 if the exception should push an error code onto the stack; clear to 0 otherwise. 
+    event.Fields.Valid = 1; //  V (Valid)¡ªBit 31. Set to 1 if an event is to be injected into the guest; clear to 0 otherwise. 
+    VpData->GuestVmcb.ControlArea.EventInj = event.AsUInt64;
+}
+
+///////////////////////////////////////////
+
 VOID SimulateReloadHostStateInVmcbGuest02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpData, _Inout_ PGUEST_CONTEXT GuestContext)
 {
     //reload host state
@@ -140,7 +194,7 @@ VOID SimulateReloadHostStateInVmcbGuest02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpData
 
 }
 
-VOID SaveGuestVmcb12FromGuestVmcb02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpData, _Inout_ PGUEST_CONTEXT GuestContext)
+VOID SimulateSaveGuestStateIntoVmcbGuest12(_Inout_ PVIRTUAL_PROCESSOR_DATA VpData, _Inout_ PGUEST_CONTEXT GuestContext)
 {
     PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
     PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa);
@@ -237,60 +291,6 @@ _Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
     }
 }
 
-BOOLEAN CheckVmcb12MsrBit(
-_Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
-    _Inout_ PGUEST_CONTEXT GuestContext)
-{
-    PVMCB pVmcbGuest12va = GetCurrentVmcbGuest12(VpData);
-	PVMCB pVmcbGuest02va = GetCurrentVmcbGuest02(VpData);
-	BOOL bIsWrite = (BOOL)pVmcbGuest02va->ControlArea.ExitInfo1;
-
-    PVOID MsrPermissionsMap = UtilVaFromPa(pVmcbGuest12va->ControlArea.MsrpmBasePa);
-    RTL_BITMAP bitmapHeader;
-	static const UINT32 FIRST_MSR_RANGE_BASE = 0x00000000;
-	static const UINT32 SECOND_MSR_RANGE_BASE = 0xc0000000;
-	static const UINT32 THIRD_MSR_RANGE_BASE = 0xC0010000;
-	static const UINT32 BITS_PER_MSR = 2;
-	static const UINT32 FIRST_MSRPM_OFFSET = 0x000 * CHAR_BIT;
-	static const UINT32 SECOND_MSRPM_OFFSET = 0x800 * CHAR_BIT;
-	static const UINT32 THIRD_MSRPM_OFFSET = 0x1000 * CHAR_BIT;
-	ULONG64 offsetFromBase = 0;
-    ULONG64 offset = 0;
-
-    RtlInitializeBitMap(&bitmapHeader,
-        reinterpret_cast<PULONG>(MsrPermissionsMap),
-        SVM_MSR_PERMISSIONS_MAP_SIZE * CHAR_BIT
-    );
-
-	UINT64 MsrNum = GuestContext->VpRegs->Rcx;
-	if (MsrNum > FIRST_MSR_RANGE_BASE && MsrNum < SECOND_MSR_RANGE_BASE)
-	{
-		offsetFromBase = (MsrNum - FIRST_MSR_RANGE_BASE) * BITS_PER_MSR;
-		offset = FIRST_MSRPM_OFFSET + offsetFromBase;
-	}
-	if (MsrNum > SECOND_MSR_RANGE_BASE && MsrNum < THIRD_MSR_RANGE_BASE)
-	{
-        offsetFromBase = (MsrNum - SECOND_MSR_RANGE_BASE) * BITS_PER_MSR;
-        offset = SECOND_MSRPM_OFFSET + offsetFromBase;
-	}
-	if (MsrNum > THIRD_MSR_RANGE_BASE)
-	{
-        offsetFromBase = (MsrNum - THIRD_MSR_RANGE_BASE) * BITS_PER_MSR;
-        offset = THIRD_MSRPM_OFFSET + offsetFromBase;
-	}
-
-    BOOLEAN bret = FALSE;
-    if (FALSE == bIsWrite)
-    {
-        bret = RtlTestBit(&bitmapHeader, (ULONG)offset);
-    }
-    else
-    {
-        bret = RtlTestBit(&bitmapHeader, ULONG(offset + 1));
-    }
-    return bret;
-}
-
 void ClearVGIF(PVIRTUAL_PROCESSOR_DATA VpData)
 {
     //60h 9 VGIF value(0 ¨C Virtual interrupts are masked, 1 ¨C Virtual Interrupts are unmasked)
@@ -311,7 +311,7 @@ void LeaveGuest(
 {
     // Clears the global interrupt flag (GIF). While GIF is zero, all external interrupts are disabled. 
     ClearVGIF(VpData);
-    SaveGuestVmcb12FromGuestVmcb02(VpData, GuestContext);
+    SimulateSaveGuestStateIntoVmcbGuest12(VpData, GuestContext);
     SimulateReloadHostStateInVmcbGuest02(VpData, GuestContext);
     LEAVE_GUEST_MODE(VmmpGetVcpuVmx(VpData));
 }
