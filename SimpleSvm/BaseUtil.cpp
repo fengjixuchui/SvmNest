@@ -316,11 +316,14 @@ void LeaveGuest(
     LEAVE_GUEST_MODE(VmmpGetVcpuVmx(VpData));
 }
 
+///////////////////////////////////simulate vmrun
+
 void SimulateVmrun02SaveHostStateShadow(
     _Inout_ PVMCB pVmcb,
     _Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
     _Inout_ PGUEST_CONTEXT GuestContext)
 {
+    UNREFERENCED_PARAMETER(GuestContext);
     // save host state to physical memory indicated in the VM_HSAVE_PA MSR: 
 
     PVMCB pVmcbHostStateShadow = &(VmmpGetVcpuVmx(VpData)->VmcbHostStateArea02Shadow);
@@ -360,4 +363,114 @@ void SimulateVmrun02SaveHostStateShadow(
     pVmcbHostStateShadow->StateSaveArea.Rsp = pVmcb->StateSaveArea.Rsp;
     // "vmrun eax" of L1 host store in vmcbguest02.  except firstly it is in the vmcb01
     pVmcbHostStateShadow->StateSaveArea.Rax = pVmcb->StateSaveArea.Rax; 
+}
+
+void SimulateVmrun02LoadControlInfoToVmcbGuest02(
+    _Inout_ PVMCB pVmcb,
+    _Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
+    _Inout_ PGUEST_CONTEXT GuestContext)
+{
+    UNREFERENCED_PARAMETER(GuestContext);
+    // from the VMCB at physical address rAX, load control information: 
+    PVMCB pVmcbGuest02va = GetCurrentVmcbGuest02(VpData);
+    PVMCB pVmcbGuest01va = &VpData->GuestVmcb;
+    // intercept vector. use vmcb01 directly.
+    pVmcbGuest02va->ControlArea.InterceptCrRead = pVmcbGuest01va->ControlArea.InterceptCrRead;
+    pVmcbGuest02va->ControlArea.InterceptCrWrite = pVmcbGuest01va->ControlArea.InterceptCrWrite;
+    pVmcbGuest02va->ControlArea.InterceptDrRead = pVmcbGuest01va->ControlArea.InterceptDrRead;
+    pVmcbGuest02va->ControlArea.InterceptDrWrite = pVmcbGuest01va->ControlArea.InterceptDrWrite;
+    pVmcbGuest02va->ControlArea.InterceptException = pVmcbGuest01va->ControlArea.InterceptException;
+    pVmcbGuest02va->ControlArea.InterceptMisc1 = pVmcbGuest01va->ControlArea.InterceptMisc1;
+    pVmcbGuest02va->ControlArea.InterceptMisc2 = pVmcbGuest01va->ControlArea.InterceptMisc2;
+    // i think other need add
+    pVmcbGuest02va->ControlArea.MsrpmBasePa = pVmcbGuest01va->ControlArea.MsrpmBasePa;
+    pVmcbGuest02va->ControlArea.NpEnable = pVmcbGuest01va->ControlArea.NpEnable;
+    pVmcbGuest02va->ControlArea.NCr3 = pVmcbGuest01va->ControlArea.NCr3;
+    pVmcbGuest02va->ControlArea.LbrVirtualizationEnable = pVmcbGuest01va->ControlArea.LbrVirtualizationEnable;
+    
+    //  (v_irq, v_intr_*, v_tpr) in VIntr , so we can not give value to VIntr directly
+    pVmcbGuest02va->ControlArea.VIntr = pVmcb->ControlArea.VIntr;
+    pVmcbGuest02va->ControlArea.VIntr |= SVM_ENABLE_VIRTUAL_GIF; // need this flag in vmcb02
+
+    // TSC_OFFSET 
+    pVmcbGuest02va->ControlArea.TscOffset = pVmcb->ControlArea.TscOffset;
+
+    // interrupt control (v_irq, v_intr_*, v_tpr) not surpport temply.
+
+    // EVENTINJ field 
+    pVmcbGuest02va->ControlArea.EventInj = pVmcb->ControlArea.EventInj;
+
+    //  ASID
+    pVmcbGuest02va->ControlArea.GuestAsid = pVmcb->ControlArea.GuestAsid;
+
+}
+
+void SimulateVmrun02LoadGuestStateFromVmcbGuest12(
+    _Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
+    _Inout_ PGUEST_CONTEXT GuestContext)
+{
+    UNREFERENCED_PARAMETER(GuestContext);
+    // from the VMCB at physical address rAX, load guest state: 
+    PVMCB pVmcbGuest02va = GetCurrentVmcbGuest02(VpData);
+    PVMCB pVmcbGuest12va = GetCurrentVmcbGuest12(VpData);
+
+    //ES.{base, limit, attr, sel}             
+    //CS.{base, limit, attr, sel}             
+    //SS.{base, limit, attr, sel}             
+    //DS.{base, limit, attr, sel}
+    pVmcbGuest02va->StateSaveArea.CsLimit = pVmcbGuest12va->StateSaveArea.CsLimit;
+    pVmcbGuest02va->StateSaveArea.DsLimit = pVmcbGuest12va->StateSaveArea.DsLimit;
+    pVmcbGuest02va->StateSaveArea.EsLimit = pVmcbGuest12va->StateSaveArea.EsLimit;
+    pVmcbGuest02va->StateSaveArea.SsLimit = pVmcbGuest12va->StateSaveArea.SsLimit;
+    pVmcbGuest02va->StateSaveArea.CsSelector = pVmcbGuest12va->StateSaveArea.CsSelector;
+    pVmcbGuest02va->StateSaveArea.DsSelector = pVmcbGuest12va->StateSaveArea.DsSelector;
+    pVmcbGuest02va->StateSaveArea.EsSelector = pVmcbGuest12va->StateSaveArea.EsSelector;
+    pVmcbGuest02va->StateSaveArea.SsSelector = pVmcbGuest12va->StateSaveArea.SsSelector;
+    pVmcbGuest02va->StateSaveArea.CsAttrib = pVmcbGuest12va->StateSaveArea.CsAttrib;
+    pVmcbGuest02va->StateSaveArea.DsAttrib = pVmcbGuest12va->StateSaveArea.DsAttrib;
+    pVmcbGuest02va->StateSaveArea.EsAttrib = pVmcbGuest12va->StateSaveArea.EsAttrib;
+    pVmcbGuest02va->StateSaveArea.SsAttrib = pVmcbGuest12va->StateSaveArea.SsAttrib;
+
+    //GDTR.{base, limit}             
+    //IDTR.{base, limit}
+    pVmcbGuest02va->StateSaveArea.GdtrBase = pVmcbGuest12va->StateSaveArea.GdtrBase;
+    pVmcbGuest02va->StateSaveArea.GdtrLimit = pVmcbGuest12va->StateSaveArea.GdtrLimit;
+    pVmcbGuest02va->StateSaveArea.IdtrBase = pVmcbGuest12va->StateSaveArea.IdtrBase;
+    pVmcbGuest02va->StateSaveArea.IdtrLimit = pVmcbGuest12va->StateSaveArea.IdtrLimit;
+
+    //EFER             
+    //CR0             
+    //CR4             
+    //CR3             
+    //CR2
+    pVmcbGuest02va->StateSaveArea.Efer = pVmcbGuest12va->StateSaveArea.Efer;
+    pVmcbGuest02va->StateSaveArea.Cr0 = pVmcbGuest12va->StateSaveArea.Cr0;
+    pVmcbGuest02va->StateSaveArea.Cr2 = pVmcbGuest12va->StateSaveArea.Cr2;
+    pVmcbGuest02va->StateSaveArea.Cr3 = pVmcbGuest12va->StateSaveArea.Cr3;
+    pVmcbGuest02va->StateSaveArea.Cr4 = pVmcbGuest12va->StateSaveArea.Cr4;
+
+    //IF(NP_ENABLE == 1)      
+    //{
+        //gPAT          //  Leaves host hPAT register unchanged.        
+    //}
+    if (pVmcbGuest12va->ControlArea.NpEnable)
+    {
+        pVmcbGuest02va->StateSaveArea.GPat = pVmcbGuest12va->StateSaveArea.GPat;
+    }
+    //RFLAGS             
+    //RIP             
+    //RSP             
+    //RAX             
+    //DR7             
+    //DR6             
+    //CPL            //  0 for real mode, 3 for v86 mode, else as loaded. 
+    //INTERRUPT_SHADOW
+    pVmcbGuest02va->StateSaveArea.Rflags = pVmcbGuest12va->StateSaveArea.Rflags;
+    pVmcbGuest02va->StateSaveArea.Rip = pVmcbGuest12va->StateSaveArea.Rip;
+    pVmcbGuest02va->StateSaveArea.Rsp = pVmcbGuest12va->StateSaveArea.Rsp;
+    pVmcbGuest02va->StateSaveArea.Rax = pVmcbGuest12va->StateSaveArea.Rax;
+    pVmcbGuest02va->StateSaveArea.Dr7 = pVmcbGuest12va->StateSaveArea.Dr7;
+    pVmcbGuest02va->StateSaveArea.Dr6 = pVmcbGuest12va->StateSaveArea.Dr6;
+    pVmcbGuest02va->StateSaveArea.Cpl = pVmcbGuest12va->StateSaveArea.Cpl;
+    pVmcbGuest02va->ControlArea.InterruptShadow = pVmcbGuest12va->ControlArea.InterruptShadow;
 }
