@@ -171,91 +171,6 @@ SvInjectBPExceptionVmcb01(
 
 ///////////////////////////////////////////
 
-VOID SimulateReloadHostStateInVmcbGuest02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpData, _Inout_ PGUEST_CONTEXT GuestContext)
-{
-    //reload host state
-    PVMCB pVmcbGuest12va = GetCurrentVmcbGuest12(VpData);
-    PVMCB pVmcbGuest02va = GetCurrentVmcbGuest02(VpData);
-
-    GuestContext->VpRegs->Rax = VmmpGetVcpuVmx(VpData)->vmcb_guest_12_pa; //  L2 rax, vmcb12pa
-    pVmcbGuest02va->StateSaveArea.Rsp = VpData->GuestVmcb.StateSaveArea.Rsp; // L2 host rsp 
-    pVmcbGuest02va->StateSaveArea.Rip = VpData->GuestVmcb.ControlArea.NRip; // L2 host ip 
-
-    // the Rflags is in vmcb01 when ret to L1 host first , but it is in vmcb02 later on. i think that is all right
-    //pVmcbGuest02va->StateSaveArea.Rflags = VpData->GuestVmcb.StateSaveArea.Rflags; // not right , but can not find
-
-    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest12va->StateSaveArea.Rax  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rax);
-    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest12va->StateSaveArea.Rsp  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rsp);
-    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest12va->StateSaveArea.Rip  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rip);
-    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest12va->ControlArea.NRip  : %I64X \r\n", pVmcbGuest12va->ControlArea.NRip);
-    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] GuestContext->VpRegs->Rax  : %I64X \r\n", GuestContext->VpRegs->Rax);
-    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest02va->StateSaveArea.Rsp  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rsp);
-    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest02va->StateSaveArea.Rip  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rip);
-
-}
-
-VOID SimulateSaveGuestStateIntoVmcbGuest12(_Inout_ PVIRTUAL_PROCESSOR_DATA VpData, _Inout_ PGUEST_CONTEXT GuestContext)
-{
-    PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
-    PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa);
-
-    pVmcbGuest12va->StateSaveArea.Rax = GuestContext->VpRegs->Rax; // save L2 rax => vmcb12 in L2
-    pVmcbGuest12va->StateSaveArea.Rsp = pVmcbGuest02va->StateSaveArea.Rsp; // save L2 guest rsp=> vmcb12
-    pVmcbGuest12va->StateSaveArea.Rflags = pVmcbGuest02va->StateSaveArea.Rflags; // save L2 guest rflags => vmcb12
-    pVmcbGuest12va->StateSaveArea.Rip = pVmcbGuest02va->StateSaveArea.Rip; // save L2 rip => vmcb12
-    pVmcbGuest12va->ControlArea.NRip = pVmcbGuest02va->ControlArea.NRip; // save L2 next rip => vmcb12
-
-    pVmcbGuest12va->ControlArea.ExitCode = pVmcbGuest02va->ControlArea.ExitCode;
-    pVmcbGuest12va->ControlArea.ExitInfo1 = pVmcbGuest02va->ControlArea.ExitInfo1;
-    pVmcbGuest12va->ControlArea.ExitInfo2 = pVmcbGuest02va->ControlArea.ExitInfo2;
-    pVmcbGuest12va->ControlArea.ExitIntInfo = pVmcbGuest02va->ControlArea.ExitIntInfo;
-    pVmcbGuest12va->ControlArea.EventInj = pVmcbGuest02va->ControlArea.EventInj;
-    pVmcbGuest12va->StateSaveArea.Cpl = pVmcbGuest02va->StateSaveArea.Cpl;
-    pVmcbGuest12va->StateSaveArea.LStar = pVmcbGuest02va->StateSaveArea.LStar;
-
-    // simulate save guest state to VMCB12: 
-
-    // ES.{base,limit,attr,sel} 
-    // CS.{base,limit,attr,sel} 
-    // SS.{base,limit,attr,sel} 
-    // DS.{base,limit,attr,sel} 
-    pVmcbGuest12va->StateSaveArea.CsLimit = pVmcbGuest02va->StateSaveArea.CsLimit;
-    pVmcbGuest12va->StateSaveArea.DsLimit = pVmcbGuest02va->StateSaveArea.DsLimit;
-    pVmcbGuest12va->StateSaveArea.EsLimit = pVmcbGuest02va->StateSaveArea.EsLimit;
-    pVmcbGuest12va->StateSaveArea.SsLimit = pVmcbGuest02va->StateSaveArea.SsLimit;
-    pVmcbGuest12va->StateSaveArea.CsSelector = pVmcbGuest02va->StateSaveArea.CsSelector;
-    pVmcbGuest12va->StateSaveArea.DsSelector = pVmcbGuest02va->StateSaveArea.DsSelector;
-    pVmcbGuest12va->StateSaveArea.EsSelector = pVmcbGuest02va->StateSaveArea.EsSelector;
-    pVmcbGuest12va->StateSaveArea.SsSelector = pVmcbGuest02va->StateSaveArea.SsSelector;
-    pVmcbGuest12va->StateSaveArea.CsAttrib = pVmcbGuest02va->StateSaveArea.CsAttrib;
-    pVmcbGuest12va->StateSaveArea.DsAttrib = pVmcbGuest02va->StateSaveArea.DsAttrib;
-    pVmcbGuest12va->StateSaveArea.EsAttrib = pVmcbGuest02va->StateSaveArea.EsAttrib;
-    pVmcbGuest12va->StateSaveArea.SsAttrib = pVmcbGuest02va->StateSaveArea.SsAttrib;
-
-    //GDTR.{base, limit}
-    //IDTR.{base, limit}
-
-    pVmcbGuest12va->StateSaveArea.GdtrBase = pVmcbGuest02va->StateSaveArea.GdtrBase;
-    pVmcbGuest12va->StateSaveArea.GdtrLimit = pVmcbGuest02va->StateSaveArea.GdtrLimit;
-    pVmcbGuest12va->StateSaveArea.IdtrBase = pVmcbGuest02va->StateSaveArea.IdtrBase;
-    pVmcbGuest12va->StateSaveArea.IdtrLimit = pVmcbGuest02va->StateSaveArea.IdtrLimit;
-
-    //EFER CR4 CR3 CR2 CR0
-    pVmcbGuest12va->StateSaveArea.Efer = pVmcbGuest02va->StateSaveArea.Efer;
-    pVmcbGuest12va->StateSaveArea.Cr4 = pVmcbGuest02va->StateSaveArea.Cr4;
-    pVmcbGuest12va->StateSaveArea.Cr3 = pVmcbGuest02va->StateSaveArea.Cr3;
-    pVmcbGuest12va->StateSaveArea.Cr2 = pVmcbGuest02va->StateSaveArea.Cr2;
-    pVmcbGuest12va->StateSaveArea.Cr0 = pVmcbGuest02va->StateSaveArea.Cr0;
-
-    //if (nested paging enabled)    gPAT
-    pVmcbGuest12va->StateSaveArea.GPat = pVmcbGuest02va->StateSaveArea.GPat;
-
-    // DR7 DR6 
-    pVmcbGuest12va->StateSaveArea.Dr7 = pVmcbGuest02va->StateSaveArea.Dr7;
-    pVmcbGuest12va->StateSaveArea.Dr6 = pVmcbGuest02va->StateSaveArea.Dr6;
-
-}
-
 VMCB * GetCurrentVmcbGuest12(PVIRTUAL_PROCESSOR_DATA pVpdata)
 {
     PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VmmpGetVcpuVmx(pVpdata)->vmcb_guest_12_pa);
@@ -312,8 +227,121 @@ void LeaveGuest(
     // Clears the global interrupt flag (GIF). While GIF is zero, all external interrupts are disabled. 
     ClearVGIF(VpData);
     SimulateSaveGuestStateIntoVmcbGuest12(VpData, GuestContext);
-    SimulateReloadHostStateInVmcbGuest02(VpData, GuestContext);
+    SimulateReloadHostStateInToVmcbGuest02(VpData, GuestContext);
     LEAVE_GUEST_MODE(VmmpGetVcpuVmx(VpData));
+}
+
+///////////////////////////////////simulate VMEXIT
+
+VOID SimulateSaveGuestStateIntoVmcbGuest12(_Inout_ PVIRTUAL_PROCESSOR_DATA VpData, _Inout_ PGUEST_CONTEXT GuestContext)
+{
+    PVMCB pVmcbGuest02va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_02_pa);
+    PVMCB pVmcbGuest12va = (PVMCB)UtilVaFromPa(VpData->HostStackLayout.pProcessNestData->vcpu_vmx->vmcb_guest_12_pa);
+
+    // simulate save guest state to VMCB12: 
+
+    // ES.{base,limit,attr,sel} 
+    // CS.{base,limit,attr,sel} 
+    // SS.{base,limit,attr,sel} 
+    // DS.{base,limit,attr,sel} 
+    pVmcbGuest12va->StateSaveArea.CsBase = pVmcbGuest02va->StateSaveArea.CsBase;
+    pVmcbGuest12va->StateSaveArea.DsBase = pVmcbGuest02va->StateSaveArea.DsBase;
+    pVmcbGuest12va->StateSaveArea.EsBase = pVmcbGuest02va->StateSaveArea.EsBase;
+    pVmcbGuest12va->StateSaveArea.SsBase = pVmcbGuest02va->StateSaveArea.SsBase;
+    pVmcbGuest12va->StateSaveArea.CsLimit = pVmcbGuest02va->StateSaveArea.CsLimit;
+    pVmcbGuest12va->StateSaveArea.DsLimit = pVmcbGuest02va->StateSaveArea.DsLimit;
+    pVmcbGuest12va->StateSaveArea.EsLimit = pVmcbGuest02va->StateSaveArea.EsLimit;
+    pVmcbGuest12va->StateSaveArea.SsLimit = pVmcbGuest02va->StateSaveArea.SsLimit;
+    pVmcbGuest12va->StateSaveArea.CsSelector = pVmcbGuest02va->StateSaveArea.CsSelector;
+    pVmcbGuest12va->StateSaveArea.DsSelector = pVmcbGuest02va->StateSaveArea.DsSelector;
+    pVmcbGuest12va->StateSaveArea.EsSelector = pVmcbGuest02va->StateSaveArea.EsSelector;
+    pVmcbGuest12va->StateSaveArea.SsSelector = pVmcbGuest02va->StateSaveArea.SsSelector;
+    pVmcbGuest12va->StateSaveArea.CsAttrib = pVmcbGuest02va->StateSaveArea.CsAttrib;
+    pVmcbGuest12va->StateSaveArea.DsAttrib = pVmcbGuest02va->StateSaveArea.DsAttrib;
+    pVmcbGuest12va->StateSaveArea.EsAttrib = pVmcbGuest02va->StateSaveArea.EsAttrib;
+    pVmcbGuest12va->StateSaveArea.SsAttrib = pVmcbGuest02va->StateSaveArea.SsAttrib;
+
+    //GDTR.{base, limit}
+    //IDTR.{base, limit}
+
+    pVmcbGuest12va->StateSaveArea.GdtrBase = pVmcbGuest02va->StateSaveArea.GdtrBase;
+    pVmcbGuest12va->StateSaveArea.GdtrLimit = pVmcbGuest02va->StateSaveArea.GdtrLimit;
+    pVmcbGuest12va->StateSaveArea.IdtrBase = pVmcbGuest02va->StateSaveArea.IdtrBase;
+    pVmcbGuest12va->StateSaveArea.IdtrLimit = pVmcbGuest02va->StateSaveArea.IdtrLimit;
+
+    //EFER CR4 CR3 CR2 CR0
+    pVmcbGuest12va->StateSaveArea.Efer = pVmcbGuest02va->StateSaveArea.Efer;
+    pVmcbGuest12va->StateSaveArea.Cr4 = pVmcbGuest02va->StateSaveArea.Cr4;
+    pVmcbGuest12va->StateSaveArea.Cr3 = pVmcbGuest02va->StateSaveArea.Cr3;
+    pVmcbGuest12va->StateSaveArea.Cr2 = pVmcbGuest02va->StateSaveArea.Cr2;
+    pVmcbGuest12va->StateSaveArea.Cr0 = pVmcbGuest02va->StateSaveArea.Cr0;
+
+    //if (nested paging enabled)    gPAT
+    if (pVmcbGuest12va->ControlArea.NpEnable)
+    {
+        pVmcbGuest12va->StateSaveArea.GPat = pVmcbGuest02va->StateSaveArea.GPat;
+    }
+
+    // RFLAGS
+    pVmcbGuest12va->StateSaveArea.Rflags = pVmcbGuest02va->StateSaveArea.Rflags; // save L2 guest rflags => vmcb12
+
+    // RIP
+    pVmcbGuest12va->StateSaveArea.Rip = pVmcbGuest02va->StateSaveArea.Rip; // save L2 rip => vmcb12
+
+    // RSP
+    pVmcbGuest12va->StateSaveArea.Rsp = pVmcbGuest02va->StateSaveArea.Rsp; // save L2 guest rsp=> vmcb12
+
+    // RAX
+    pVmcbGuest12va->StateSaveArea.Rax = pVmcbGuest02va->StateSaveArea.Rax; // save L2 rax => vmcb12 in L2
+
+    // DR7 DR6 
+    pVmcbGuest12va->StateSaveArea.Dr7 = pVmcbGuest02va->StateSaveArea.Dr7;
+    pVmcbGuest12va->StateSaveArea.Dr6 = pVmcbGuest02va->StateSaveArea.Dr6;
+
+    // CPL
+    pVmcbGuest12va->StateSaveArea.Cpl = pVmcbGuest02va->StateSaveArea.Cpl;
+
+    // INTERRUPT_SHADOW
+    pVmcbGuest12va->ControlArea.InterruptShadow = pVmcbGuest02va->ControlArea.InterruptShadow;
+
+    // V_IRQ, V_TPR
+    // EXITCODE EXITINFO1 EXITINFO2 EXITINTINFO 
+
+    pVmcbGuest12va->ControlArea.ExitCode = pVmcbGuest02va->ControlArea.ExitCode;
+    pVmcbGuest12va->ControlArea.ExitInfo1 = pVmcbGuest02va->ControlArea.ExitInfo1;
+    pVmcbGuest12va->ControlArea.ExitInfo2 = pVmcbGuest02va->ControlArea.ExitInfo2;
+    pVmcbGuest12va->ControlArea.ExitIntInfo = pVmcbGuest02va->ControlArea.ExitIntInfo;
+    
+    // clear EVENTINJ field in VMCB
+    pVmcbGuest12va->ControlArea.EventInj = 0;
+
+    // others
+    pVmcbGuest12va->ControlArea.NRip = pVmcbGuest02va->ControlArea.NRip; // save L2 next rip => vmcb12
+    pVmcbGuest12va->StateSaveArea.LStar = pVmcbGuest02va->StateSaveArea.LStar;
+
+}
+
+VOID SimulateReloadHostStateInToVmcbGuest02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpData, _Inout_ PGUEST_CONTEXT GuestContext)
+{
+    //reload host state
+    PVMCB pVmcbGuest12va = GetCurrentVmcbGuest12(VpData);
+    PVMCB pVmcbGuest02va = GetCurrentVmcbGuest02(VpData);
+
+    GuestContext->VpRegs->Rax = VmmpGetVcpuVmx(VpData)->vmcb_guest_12_pa; //  L2 rax, vmcb12pa
+    pVmcbGuest02va->StateSaveArea.Rsp = VpData->GuestVmcb.StateSaveArea.Rsp; // L2 host rsp 
+    pVmcbGuest02va->StateSaveArea.Rip = VpData->GuestVmcb.ControlArea.NRip; // L2 host ip 
+
+    // the Rflags is in vmcb01 when ret to L1 host first , but it is in vmcb02 later on. i think that is all right
+    //pVmcbGuest02va->StateSaveArea.Rflags = VpData->GuestVmcb.StateSaveArea.Rflags; // not right , but can not find
+
+    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest12va->StateSaveArea.Rax  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rax);
+    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest12va->StateSaveArea.Rsp  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rsp);
+    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest12va->StateSaveArea.Rip  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.Rip);
+    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest12va->ControlArea.NRip  : %I64X \r\n", pVmcbGuest12va->ControlArea.NRip);
+    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] GuestContext->VpRegs->Rax  : %I64X \r\n", GuestContext->VpRegs->Rax);
+    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest02va->StateSaveArea.Rsp  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rsp);
+    SvDebugPrint("[SaveGuestVmcb12FromGuestVmcb02] pVmcbGuest02va->StateSaveArea.Rip  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.Rip);
+
 }
 
 ///////////////////////////////////simulate vmrun
