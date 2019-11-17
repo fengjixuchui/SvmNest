@@ -96,6 +96,9 @@ void DumpVmcb(PVIRTUAL_PROCESSOR_DATA VpData)
     PVMCB pVmcbGuest02va = GetCurrentVmcbGuest02(VpData);
     PVMCB pVmcbHostStateShadow = &(VmmpGetVcpuVmx(VpData)->VmcbHostStateArea02Shadow);
 
+    UNREFERENCED_PARAMETER(pVmcbGuest02va);
+    UNREFERENCED_PARAMETER(pVmcbHostStateShadow);
+
     SvDebugPrint("[DumpVmcb] pVmcbGuest12va->StateSaveArea.GsBase  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.GsBase);
     SvDebugPrint("[DumpVmcb] pVmcbGuest12va->StateSaveArea.KernelGsBase  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.KernelGsBase);
 
@@ -275,15 +278,6 @@ VOID SimulateSaveGuestStateIntoVmcbGuest12(_Inout_ PVIRTUAL_PROCESSOR_DATA VpDat
     pVmcbGuest12va->StateSaveArea.EsAttrib = pVmcbGuest02va->StateSaveArea.EsAttrib;
     pVmcbGuest12va->StateSaveArea.SsAttrib = pVmcbGuest02va->StateSaveArea.SsAttrib;
 
-    // gs 
-    pVmcbGuest12va->StateSaveArea.GsBase = pVmcbGuest02va->StateSaveArea.GsBase;
-    pVmcbGuest12va->StateSaveArea.GsLimit = pVmcbGuest02va->StateSaveArea.GsLimit;
-    pVmcbGuest12va->StateSaveArea.GsSelector = pVmcbGuest02va->StateSaveArea.GsSelector;
-    pVmcbGuest12va->StateSaveArea.GsAttrib = pVmcbGuest02va->StateSaveArea.GsAttrib;
-
-    // gskernelbase
-    pVmcbGuest12va->StateSaveArea.KernelGsBase = pVmcbGuest02va->StateSaveArea.KernelGsBase;
-
     //GDTR.{base, limit}
     //IDTR.{base, limit}
 
@@ -340,7 +334,7 @@ VOID SimulateSaveGuestStateIntoVmcbGuest12(_Inout_ PVIRTUAL_PROCESSOR_DATA VpDat
 
     // others
     pVmcbGuest12va->ControlArea.NRip = pVmcbGuest02va->ControlArea.NRip; // save L2 next rip => vmcb12
-    pVmcbGuest12va->StateSaveArea.LStar = pVmcbGuest02va->StateSaveArea.LStar;
+    //pVmcbGuest12va->StateSaveArea.LStar = pVmcbGuest02va->StateSaveArea.LStar;
 
 }
 
@@ -350,6 +344,8 @@ VOID SimulateReloadHostStateInToVmcbGuest02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpDa
     PVMCB pVmcbGuest12va = GetCurrentVmcbGuest12(VpData);
     PVMCB pVmcbGuest02va = GetCurrentVmcbGuest02(VpData);
     PVMCB pVmcbHostStateShadow = &(VmmpGetVcpuVmx(VpData)->VmcbHostStateArea02Shadow);
+
+    UNREFERENCED_PARAMETER(pVmcbGuest12va);
 
     //GDTR.{base, limit} 
     //IDTR.{base, limit}
@@ -396,15 +392,6 @@ VOID SimulateReloadHostStateInToVmcbGuest02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpDa
     pVmcbGuest02va->StateSaveArea.EsSelector = pVmcbHostStateShadow->StateSaveArea.EsSelector;
     pVmcbGuest02va->StateSaveArea.SsSelector = pVmcbHostStateShadow->StateSaveArea.SsSelector;
 
-    // gs 
-    pVmcbGuest02va->StateSaveArea.GsBase = pVmcbHostStateShadow->StateSaveArea.GsBase;
-    pVmcbGuest02va->StateSaveArea.GsAttrib = pVmcbHostStateShadow->StateSaveArea.GsAttrib;
-    pVmcbGuest02va->StateSaveArea.GsLimit = pVmcbHostStateShadow->StateSaveArea.GsLimit;
-    pVmcbGuest02va->StateSaveArea.GsSelector = pVmcbHostStateShadow->StateSaveArea.GsSelector;
-
-    // gskernelbase
-    pVmcbGuest02va->StateSaveArea.KernelGsBase = pVmcbHostStateShadow->StateSaveArea.KernelGsBase;
-
 }
 
 ///////////////////////////////////simulate vmrun
@@ -426,15 +413,6 @@ void SimulateVmrun02SaveHostStateShadow(
     pVmcbHostStateShadow->StateSaveArea.DsSelector = pVmcb->StateSaveArea.DsSelector;
     pVmcbHostStateShadow->StateSaveArea.EsSelector = pVmcb->StateSaveArea.EsSelector;
     pVmcbHostStateShadow->StateSaveArea.SsSelector = pVmcb->StateSaveArea.SsSelector;
-
-    // gs
-    pVmcbHostStateShadow->StateSaveArea.GsBase = pVmcb->StateSaveArea.GsBase;
-    pVmcbHostStateShadow->StateSaveArea.GsLimit = pVmcb->StateSaveArea.GsLimit;
-    pVmcbHostStateShadow->StateSaveArea.GsSelector = pVmcb->StateSaveArea.GsSelector;
-    pVmcbHostStateShadow->StateSaveArea.GsAttrib = pVmcb->StateSaveArea.GsAttrib;
-
-    // gskernelbase
-    pVmcbHostStateShadow->StateSaveArea.KernelGsBase = pVmcb->StateSaveArea.KernelGsBase;
 
     //GDTR.{base,limit} 
     //IDTR.{base,limit} 
@@ -534,15 +512,6 @@ void SimulateVmrun02LoadGuestStateFromVmcbGuest12(
     pVmcbGuest02va->StateSaveArea.DsAttrib = pVmcbGuest12va->StateSaveArea.DsAttrib;
     pVmcbGuest02va->StateSaveArea.EsAttrib = pVmcbGuest12va->StateSaveArea.EsAttrib;
     pVmcbGuest02va->StateSaveArea.SsAttrib = pVmcbGuest12va->StateSaveArea.SsAttrib;
-
-    // gs
-    pVmcbGuest02va->StateSaveArea.GsBase = pVmcbGuest12va->StateSaveArea.GsBase;
-    pVmcbGuest02va->StateSaveArea.GsLimit = pVmcbGuest12va->StateSaveArea.GsLimit;
-    pVmcbGuest02va->StateSaveArea.GsSelector = pVmcbGuest12va->StateSaveArea.GsSelector;
-    pVmcbGuest02va->StateSaveArea.GsAttrib = pVmcbGuest12va->StateSaveArea.GsAttrib;
-
-    // gskernelbase
-    pVmcbGuest02va->StateSaveArea.KernelGsBase = pVmcbGuest12va->StateSaveArea.KernelGsBase;
 
     //GDTR.{base, limit}             
     //IDTR.{base, limit}
