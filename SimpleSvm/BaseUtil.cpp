@@ -380,9 +380,6 @@ VOID SimulateReloadHostStateInToVmcbGuest02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpDa
 
     // DR7 = ¡°all disabled¡± 
 
-    // CPL = 0 
-    pVmcbGuest02va->StateSaveArea.Cpl = 0;
-
     //ES.sel; reload segment descriptor from GDT 
     //CS.sel; reload segment descriptor from GDT 
     //SS.sel; reload segment descriptor from GDT 
@@ -391,6 +388,27 @@ VOID SimulateReloadHostStateInToVmcbGuest02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpDa
     pVmcbGuest02va->StateSaveArea.DsSelector = pVmcbHostStateShadow->StateSaveArea.DsSelector;
     pVmcbGuest02va->StateSaveArea.EsSelector = pVmcbHostStateShadow->StateSaveArea.EsSelector;
     pVmcbGuest02va->StateSaveArea.SsSelector = pVmcbHostStateShadow->StateSaveArea.SsSelector;
+
+    VmmpGetVcpuVmx(VpData)->uintL2GuestCpl = pVmcbGuest02va->StateSaveArea.Cpl; // save L2 guest cpl 
+    // CPL = 0 
+    pVmcbGuest02va->StateSaveArea.Cpl = 0;
+
+    if (3 == VmmpGetVcpuVmx(VpData)->uintL2GuestCpl) 
+    {
+        VmmpGetVcpuVmx(VpData)->uint64L2KernelGsBase = pVmcbGuest02va->StateSaveArea.KernelGsBase;
+        VmmpGetVcpuVmx(VpData)->uint64L2GsBase = pVmcbGuest02va->StateSaveArea.GsBase;
+        VmmpGetVcpuVmx(VpData)->uintL2GsLimit = pVmcbGuest02va->StateSaveArea.GsLimit;
+        VmmpGetVcpuVmx(VpData)->uintL2GsSelector = pVmcbGuest02va->StateSaveArea.GsSelector;
+        VmmpGetVcpuVmx(VpData)->uintL2GsAttrib = pVmcbGuest02va->StateSaveArea.GsAttrib;
+    }
+
+    // others
+    pVmcbGuest02va->StateSaveArea.KernelGsBase = pVmcbHostStateShadow->StateSaveArea.KernelGsBase;
+
+    pVmcbGuest02va->StateSaveArea.GsBase = pVmcbHostStateShadow->StateSaveArea.GsBase;
+    pVmcbGuest02va->StateSaveArea.GsLimit = pVmcbHostStateShadow->StateSaveArea.GsLimit;
+    pVmcbGuest02va->StateSaveArea.GsSelector = pVmcbHostStateShadow->StateSaveArea.GsSelector;
+    pVmcbGuest02va->StateSaveArea.GsAttrib = pVmcbHostStateShadow->StateSaveArea.GsAttrib;
 
 }
 
@@ -441,6 +459,15 @@ void SimulateVmrun02SaveHostStateShadow(
     pVmcbHostStateShadow->StateSaveArea.Rsp = pVmcb->StateSaveArea.Rsp;
     // "vmrun eax" of L1 host store in vmcbguest02.  except firstly it is in the vmcb01
     pVmcbHostStateShadow->StateSaveArea.Rax = pVmcb->StateSaveArea.Rax; 
+
+    // others
+    pVmcbHostStateShadow->StateSaveArea.KernelGsBase = pVmcb->StateSaveArea.KernelGsBase;
+
+    pVmcbHostStateShadow->StateSaveArea.GsBase = pVmcb->StateSaveArea.GsBase;
+    pVmcbHostStateShadow->StateSaveArea.GsLimit = pVmcb->StateSaveArea.GsLimit;
+    pVmcbHostStateShadow->StateSaveArea.GsSelector = pVmcb->StateSaveArea.GsSelector;
+    pVmcbHostStateShadow->StateSaveArea.GsAttrib = pVmcb->StateSaveArea.GsAttrib;
+
 }
 
 void SimulateVmrun02LoadControlInfoToVmcbGuest02(
@@ -555,4 +582,7 @@ void SimulateVmrun02LoadGuestStateFromVmcbGuest12(
     pVmcbGuest02va->StateSaveArea.Dr6 = pVmcbGuest12va->StateSaveArea.Dr6;
     pVmcbGuest02va->StateSaveArea.Cpl = pVmcbGuest12va->StateSaveArea.Cpl;
     pVmcbGuest02va->ControlArea.InterruptShadow = pVmcbGuest12va->ControlArea.InterruptShadow;
+
+    // others
+    pVmcbGuest02va->ControlArea.NRip = pVmcbGuest12va->ControlArea.NRip;
 }
