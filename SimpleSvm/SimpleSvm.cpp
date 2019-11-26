@@ -389,6 +389,9 @@ SvHandleVmExit (
         case VMEXIT_VMSAVE:
             SvHandleVmsave(VpData, &guestContext);
             break;
+        case VMEXIT_VMLOAD:
+            SvHandleVmload(VpData, &guestContext);
+            break;
         case VMEXIT_EXCEPTION_BP:
             SvHandleBreakPointException(VpData, &guestContext);
             break;
@@ -429,6 +432,9 @@ SvHandleVmExit (
 		case VMEXIT_VMMCALL:
             SvHandleVmmcallNest(VpData, &guestContext);
 			break;
+        case VMEXIT_VMLOAD:
+            SvHandleVmloadNest(VpData, &guestContext);
+            break;
         case VMEXIT_EXCEPTION_BP:
             SvHandleBreakPointExceptionNest(VpData, &guestContext);
             break;

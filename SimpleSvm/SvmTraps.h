@@ -35,6 +35,10 @@ VOID SvHandleVmrunEx(
 	_Inout_ PGUEST_CONTEXT GuestContext
 );
 
+VOID SvHandleVmload(
+    _Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
+    _Inout_ PGUEST_CONTEXT GuestContext);
+
 VOID SvHandleVmsave(
     _Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
     _Inout_ PGUEST_CONTEXT GuestContext);
@@ -44,6 +48,11 @@ void VmmpHandleVmCallUnHookSyscall(PVIRTUAL_PROCESSOR_DATA VpData);
 VOID SvHandleCpuidForL2ToL1(
 	_Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
 	_Inout_ PGUEST_CONTEXT GuestContext
+);
+
+VOID SvHandleVmloadNest(
+    _Inout_ PVIRTUAL_PROCESSOR_DATA VpData,
+    _Inout_ PGUEST_CONTEXT GuestContext
 );
 
 VOID SvHandleVmsaveNest(
