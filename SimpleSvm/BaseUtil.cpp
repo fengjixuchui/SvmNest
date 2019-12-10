@@ -90,7 +90,7 @@ VCPUVMX* VmmpGetVcpuVmx(PVIRTUAL_PROCESSOR_DATA pVpdata)
     return pVpdata->HostStackLayout.pProcessNestData->vcpu_vmx;
 }
 
-void DumpVmcb(PVIRTUAL_PROCESSOR_DATA VpData)
+void DumpVmcbLeaveGuest(PVIRTUAL_PROCESSOR_DATA VpData)
 {
     PVMCB pVmcbGuest12va = GetCurrentVmcbGuest12(VpData);
     PVMCB pVmcbGuest02va = GetCurrentVmcbGuest02(VpData);
@@ -99,9 +99,20 @@ void DumpVmcb(PVIRTUAL_PROCESSOR_DATA VpData)
     UNREFERENCED_PARAMETER(pVmcbGuest02va);
     UNREFERENCED_PARAMETER(pVmcbHostStateShadow);
 
-    SvDebugPrint("[DumpVmcb] pVmcbGuest12va->StateSaveArea.GsBase  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.GsBase);
-    SvDebugPrint("[DumpVmcb] pVmcbGuest12va->StateSaveArea.KernelGsBase  : %I64X \r\n", pVmcbGuest12va->StateSaveArea.KernelGsBase);
-
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->StateSaveArea.FsBase  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.FsBase);
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->StateSaveArea.FsLimit  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.FsLimit);
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->StateSaveArea.FsSelector  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.FsSelector);
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->StateSaveArea.FsAttrib  : %I64X \r\n", pVmcbGuest02va->StateSaveArea.FsAttrib);
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
+//     SvDebugPrint("[DumpVmcb] pVmcbGuest02va->  : %I64X \r\n", );
 }
 
 /*!
@@ -244,7 +255,7 @@ void LeaveGuest(
     SimulateReloadHostStateInToVmcbGuest02(VpData, GuestContext);
     LEAVE_GUEST_MODE(VmmpGetVcpuVmx(VpData));
     SvDebugPrint("[LeaveGuest]\n");
-    DumpVmcb(VpData);
+    DumpVmcbLeaveGuest(VpData);
 }
 
 ///////////////////////////////////simulate VMEXIT
@@ -352,6 +363,7 @@ VOID SimulateReloadHostStateInToVmcbGuest02(_Inout_ PVIRTUAL_PROCESSOR_DATA VpDa
     if (3 == VmmpGetVcpuVmx(VpData)->uintL2GuestCpl) // save L2 ring3 vmcb
     {
         CopyVmcbBasic(&(VmmpGetVcpuVmx(VpData)->VmcbL2Ring3), pVmcbGuest02va);
+        CopyVmcbAdv(&(VmmpGetVcpuVmx(VpData)->VmcbL2Ring3), pVmcbGuest02va);
     }
 
     CopyVmcbBasic(pVmcbGuest02va, &(VmmpGetVcpuVmx(VpData)->VmcbL1Ring0)); // load ring 0 
@@ -461,6 +473,7 @@ void SimulateVmrun02SaveHostStateShadow(
     if (3 == VmmpGetVcpuVmx(VpData)->uintL2GuestCpl) // load L2 ring3 vmcb
     {
         CopyVmcbBasic(pVmcb, &(VmmpGetVcpuVmx(VpData)->VmcbL2Ring3));
+        CopyVmcbAdv(pVmcb, &(VmmpGetVcpuVmx(VpData)->VmcbL2Ring3));
     }
 }
 
